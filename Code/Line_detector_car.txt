@@ -1,0 +1,126 @@
+#include "mcc_generated_files/mcc.h"
+
+#define motor_in1 LATCbits.LATC0
+#define motor_in2 LATCbits.LATC1
+#define motor_in3 LATCbits.LATC2
+#define motor_in4 LATAbits.LATA4
+#define Line_Left PORTCbits.RC4
+#define Line_Center PORTCbits.RC7
+#define Line_Right PORTBbits.RB6
+
+#define Sensor_Obstacle PORTBbits.RB4
+
+unsigned char cmd, state_control = 0;
+
+void Forward_follow_line() {
+    PWM3_LoadDutyValue(550);
+    PWM4_LoadDutyValue(550);
+    motor_in1 = 1;
+    motor_in2 = 0;
+    motor_in3 = 1;
+    motor_in4 = 0;
+}
+void Forward_control() {
+    PWM3_LoadDutyValue(700);
+    PWM4_LoadDutyValue(700);
+    motor_in1 = 1;
+    motor_in2 = 0;
+    motor_in3 = 1;
+    motor_in4 = 0;
+}
+
+void Right() {
+    PWM3_LoadDutyValue(550);
+    PWM4_LoadDutyValue(550);
+    motor_in1 = 0;      //Motor right stop
+    motor_in2 = 0;
+    motor_in3 = 1;     //Motor left run
+    motor_in4 = 0; 
+    __delay_ms(10);
+}
+
+void Left() { 
+    PWM3_LoadDutyValue(550);
+    PWM4_LoadDutyValue(550);
+    motor_in1 = 1;     //Motor left run
+    motor_in2 = 0;
+    motor_in3 = 0;     //Motor right stop
+    motor_in4 = 0;
+    __delay_ms(10);
+}
+
+void Stop() {
+    motor_in1 = 0;
+    motor_in2 = 0;
+    motor_in3 = 0;
+    motor_in4 = 0;
+}
+
+void Backward() {
+    PWM3_LoadDutyValue(700);
+    PWM4_LoadDutyValue(700);
+    motor_in1 = 0;   //Motor left run backwards
+    motor_in2 = 1;
+    motor_in3 = 0;   ////Motor right run backwards
+    motor_in4 = 1;
+}
+
+void main(void) {
+    SYSTEM_Initialize();
+    EPWM1_LoadDutyValue(15);
+    EPWM2_LoadDutyValue(30);
+    Forward_follow_line();
+    __delay_ms(500);
+
+    while (1) {
+        //Control by smartphone
+        if (state_control == 0) {
+            if (Sensor_Obstacle == 1) {
+                if (Line_Center == 1) {
+                    Forward_follow_line();
+                }
+                if ((Line_Right == 1) || ((Line_Right == 1)&&( Line_Center== 1))) {
+                    Right();              
+                }
+                
+                if ((Line_Left == 1) || ((Line_Left == 1)&&(Line_Center == 1))) {
+                    Left();                  
+                }
+            }       
+            else {
+                Stop(); //All motor stop 
+                EPWM1_LoadDutyValue(30);  // Servo 1 reset in 0 degree
+                EPWM2_LoadDutyValue(14);  // Servo 2 reset in 0 degree
+                state_control = 1;
+            }
+        }
+        //Control by bluetooth
+        if (state_control == 1) {
+            while (EUSART_is_rx_ready() == 0);
+            cmd = EUSART_Read();
+            if (cmd == 'S') {
+                Stop();
+            }
+            if (cmd == 'F') {
+                Forward_control();
+            }
+            if (cmd == 'G') {
+                Backward();
+            }
+            if (cmd == 'R') {
+                Right();
+               
+            }
+            if (cmd == 'L') {
+                Left();
+            }
+            if (cmd == 'X') {
+                state_control = 0;
+            }
+            if (cmd == 'Y') {
+                EPWM1_LoadDutyValue(14);  // Servo 1 reset in 90 degree
+                EPWM2_LoadDutyValue(30);  // Servo 2 reset in 90 degree
+            }
+        }
+    }
+}
